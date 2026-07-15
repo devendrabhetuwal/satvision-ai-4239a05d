@@ -356,320 +356,42 @@ function TimeSeriesPage() {
           </div>
         ) : (
           <>
-            {/* Change summary */}
-            <section className="mb-6 grid gap-4 md:grid-cols-3">
-              {(Object.keys(INDEX_META) as IndexKey[]).map((key) => (
-                <ChangeCard
-                  key={key}
-                  index={key}
-                  active={activeIndex === key}
-                  onClick={() => setActiveIndex(key)}
-                  change={changes[key]}
-                />
-              ))}
-            </section>
-
-            {/* Chart */}
-            <section className="glass mb-6 rounded-2xl p-5">
-              <div className="mb-3 flex items-center justify-between">
-                <div>
-                  <h2
-                    className="text-lg font-bold"
-                    style={{ fontFamily: "Space Grotesk" }}
-                  >
-                    Mean index over time
-                  </h2>
-                  <p className="text-xs text-muted-foreground">
-                    Highlighting the largest change in{" "}
-                    <span
-                      className="font-semibold"
-                      style={{ color: INDEX_META[activeIndex].color }}
-                    >
-                      {INDEX_META[activeIndex].label}
-                    </span>
-                  </p>
-                </div>
-                <div className="flex gap-1">
-                  {(Object.keys(INDEX_META) as IndexKey[]).map((key) => (
-                    <button
-                      key={key}
-                      onClick={() => setActiveIndex(key)}
-                      className={`rounded-full px-3 py-1 text-xs transition ${
-                        activeIndex === key
-                          ? "bg-primary text-primary-foreground"
-                          : "glass hover:bg-white/5"
-                      }`}
-                    >
-                      {INDEX_META[key].label}
-                    </button>
-                  ))}
-                </div>
-              </div>
-
-              <div className="h-80 w-full">
-                <ResponsiveContainer width="100%" height="100%">
-                  <LineChart
-                    data={chartData}
-                    margin={{ top: 10, right: 20, left: 0, bottom: 10 }}
-                  >
-                    <CartesianGrid
-                      strokeDasharray="3 3"
-                      stroke="rgba(255,255,255,0.08)"
-                    />
-                    <XAxis
-                      dataKey="date"
-                      stroke="rgba(255,255,255,0.6)"
-                      fontSize={11}
-                    />
-                    <YAxis
-                      stroke="rgba(255,255,255,0.6)"
-                      fontSize={11}
-                      domain={[-1, 1]}
-                    />
-                    <Tooltip
-                      contentStyle={{
-                        background: "rgba(15,15,25,0.95)",
-                        border: "1px solid rgba(255,255,255,0.1)",
-                        borderRadius: 12,
-                        fontSize: 12,
-                      }}
-                    />
-                    <Legend wrapperStyle={{ fontSize: 12 }} />
-                    {highlightedJump?.maxJumpTo && (
-                      <ReferenceLine
-                        x={highlightedJump.maxJumpTo}
-                        stroke={INDEX_META[activeIndex].color}
-                        strokeDasharray="4 4"
-                        label={{
-                          value: "Δ max",
-                          position: "top",
-                          fill: INDEX_META[activeIndex].color,
-                          fontSize: 10,
-                        }}
-                      />
-                    )}
-                    <Line
-                      type="monotone"
-                      dataKey="NDVI"
-                      stroke={INDEX_META.ndvi.color}
-                      strokeWidth={activeIndex === "ndvi" ? 3 : 1.5}
-                      opacity={activeIndex === "ndvi" ? 1 : 0.35}
-                      dot={{ r: 3 }}
-                    />
-                    <Line
-                      type="monotone"
-                      dataKey="NDWI"
-                      stroke={INDEX_META.ndwi.color}
-                      strokeWidth={activeIndex === "ndwi" ? 3 : 1.5}
-                      opacity={activeIndex === "ndwi" ? 1 : 0.35}
-                      dot={{ r: 3 }}
-                    />
-                    <Line
-                      type="monotone"
-                      dataKey="NDBI"
-                      stroke={INDEX_META.ndbi.color}
-                      strokeWidth={activeIndex === "ndbi" ? 3 : 1.5}
-                      opacity={activeIndex === "ndbi" ? 1 : 0.35}
-                      dot={{ r: 3 }}
-                    />
-                  </LineChart>
-                </ResponsiveContainer>
-              </div>
-            </section>
-
-            {/* Scene table */}
-            <section className="glass rounded-2xl p-5">
-              <div className="mb-3 flex flex-wrap items-center justify-between gap-2">
-                <h3
-                  className="text-sm font-bold uppercase tracking-wider text-muted-foreground"
-                  style={{ fontFamily: "Space Grotesk" }}
+            {shareUrl && (
+              <div className="glass mb-4 flex flex-wrap items-center gap-2 rounded-2xl p-3 text-xs">
+                <Share2 className="h-3.5 w-3.5 text-primary" />
+                <span className="text-muted-foreground">Share link:</span>
+                <a
+                  href={shareUrl}
+                  target="_blank"
+                  rel="noreferrer"
+                  className="truncate font-mono text-primary hover:underline"
                 >
-                  Scenes ({items.length})
-                </h3>
-                <div className="flex gap-2">
-                  <button
-                    onClick={exportCsv}
-                    className="glass flex items-center gap-1.5 rounded-full px-3 py-1.5 text-xs font-medium hover:bg-white/5"
-                  >
-                    <FileSpreadsheet className="h-3.5 w-3.5" /> Export CSV
-                  </button>
-                  <button
-                    onClick={exportGeoJSON}
-                    className="glass flex items-center gap-1.5 rounded-full px-3 py-1.5 text-xs font-medium hover:bg-white/5"
-                  >
-                    <FileJson className="h-3.5 w-3.5" /> Export GeoJSON
-                  </button>
-                </div>
+                  {shareUrl}
+                </a>
+                <button
+                  onClick={async () => {
+                    await navigator.clipboard.writeText(shareUrl);
+                    setCopied(true);
+                    setTimeout(() => setCopied(false), 2500);
+                    toast.success("Copied");
+                  }}
+                  className="ml-auto rounded-full border border-border px-2 py-0.5 hover:bg-white/5"
+                >
+                  {copied ? "Copied" : "Copy"}
+                </button>
               </div>
-              <div className="overflow-x-auto">
-                <table className="w-full text-xs">
-                  <thead className="text-muted-foreground">
-                    <tr className="border-b border-border/40">
-                      <th className="px-3 py-2 text-left">Date</th>
-                      <th className="px-3 py-2 text-left">File</th>
-                      <th className="px-3 py-2 text-right">NDVI μ</th>
-                      <th className="px-3 py-2 text-right">NDWI μ</th>
-                      <th className="px-3 py-2 text-right">NDBI μ</th>
-                      <th className="px-3 py-2" />
-                    </tr>
-                  </thead>
-                  <tbody>
-                    {items.map((it, i) => {
-                      const prev = items[i - 1];
-                      const delta = prev
-                        ? it[activeIndex].mean - prev[activeIndex].mean
-                        : 0;
-                      return (
-                        <tr
-                          key={it.id}
-                          className="border-b border-border/20 last:border-none"
-                        >
-                          <td className="px-3 py-2 font-mono">{it.date}</td>
-                          <td className="px-3 py-2 truncate">
-                            <span className="font-mono">{it.fileName}</span>
-                            <span className="ml-2 text-muted-foreground">
-                              {it.bands}b
-                            </span>
-                          </td>
-                          <td className="px-3 py-2 text-right font-mono">
-                            {it.ndvi.mean.toFixed(3)}
-                          </td>
-                          <td className="px-3 py-2 text-right font-mono">
-                            {it.ndwi.mean.toFixed(3)}
-                          </td>
-                          <td className="px-3 py-2 text-right font-mono">
-                            {it.ndbi.mean.toFixed(3)}
-                          </td>
-                          <td className="px-3 py-2 text-right">
-                            {prev && (
-                              <span
-                                className={`mr-3 inline-flex items-center gap-1 font-mono ${
-                                  delta > 0.02
-                                    ? "text-emerald-400"
-                                    : delta < -0.02
-                                      ? "text-rose-400"
-                                      : "text-muted-foreground"
-                                }`}
-                              >
-                                {delta > 0.02 ? (
-                                  <TrendingUp className="h-3 w-3" />
-                                ) : delta < -0.02 ? (
-                                  <TrendingDown className="h-3 w-3" />
-                                ) : (
-                                  <Minus className="h-3 w-3" />
-                                )}
-                                {(delta >= 0 ? "+" : "") + delta.toFixed(3)}
-                              </span>
-                            )}
-                            <button
-                              onClick={() => removeItem(it.id)}
-                              className="text-muted-foreground hover:text-rose-400"
-                              aria-label="Remove"
-                            >
-                              <Trash2 className="h-3.5 w-3.5" />
-                            </button>
-                          </td>
-                        </tr>
-                      );
-                    })}
-                  </tbody>
-                </table>
-              </div>
-            </section>
+            )}
+            <TimeseriesResults
+              scenes={items}
+              activeIndex={activeIndex}
+              onActiveIndexChange={setActiveIndex}
+              onRemoveScene={removeItem}
+              onExportCsv={exportCsv}
+              onExportGeoJSON={exportGeoJSON}
+            />
           </>
         )}
       </div>
     </div>
-  );
-}
-
-function ChangeCard({
-  index,
-  active,
-  onClick,
-  change,
-}: {
-  index: IndexKey;
-  active: boolean;
-  onClick: () => void;
-  change:
-    | {
-        first: number;
-        last: number;
-        delta: number;
-        pct: number | null;
-        maxJump: number;
-        maxJumpFrom: string | null;
-        maxJumpTo: string | null;
-      }
-    | null;
-}) {
-  const meta = INDEX_META[index];
-  const trend = change
-    ? change.delta > 0.02
-      ? "up"
-      : change.delta < -0.02
-        ? "down"
-        : "flat"
-    : "flat";
-  const Icon =
-    trend === "up" ? TrendingUp : trend === "down" ? TrendingDown : Minus;
-  const color =
-    trend === "up"
-      ? "text-emerald-400"
-      : trend === "down"
-        ? "text-rose-400"
-        : "text-muted-foreground";
-
-  return (
-    <button
-      onClick={onClick}
-      className={`glass rounded-2xl p-4 text-left transition ${
-        active ? "ring-2 ring-primary" : "hover:bg-white/5"
-      }`}
-    >
-      <div className="mb-2 flex items-center justify-between">
-        <div>
-          <div
-            className="text-sm font-bold"
-            style={{ fontFamily: "Space Grotesk", color: meta.color }}
-          >
-            {meta.label}
-          </div>
-          <div className="text-[10px] uppercase tracking-wider text-muted-foreground">
-            {meta.subtitle}
-          </div>
-        </div>
-        <Icon className={`h-4 w-4 ${color}`} />
-      </div>
-
-      {change ? (
-        <>
-          <div className="flex items-baseline gap-2">
-            <span className={`text-2xl font-bold ${color}`}>
-              {(change.delta >= 0 ? "+" : "") + change.delta.toFixed(3)}
-            </span>
-            {change.pct !== null && (
-              <span className="text-xs text-muted-foreground">
-                ({(change.pct >= 0 ? "+" : "") + change.pct.toFixed(1)}%)
-              </span>
-            )}
-          </div>
-          <div className="mt-1 text-[11px] text-muted-foreground">
-            {change.first.toFixed(3)} → {change.last.toFixed(3)}
-          </div>
-          {change.maxJumpFrom && change.maxJumpTo && change.maxJump > 0 && (
-            <div className="mt-2 rounded-lg bg-black/30 px-2 py-1 text-[10px] text-muted-foreground">
-              Largest step: <span className="font-mono">{change.maxJump.toFixed(3)}</span>{" "}
-              between {change.maxJumpFrom} → {change.maxJumpTo}
-            </div>
-          )}
-        </>
-      ) : (
-        <p className="text-xs text-muted-foreground">
-          Add ≥ 2 scenes to see change.
-        </p>
-      )}
-    </button>
   );
 }
