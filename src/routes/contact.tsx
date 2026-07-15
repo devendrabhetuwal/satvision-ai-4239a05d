@@ -40,7 +40,7 @@ function ContactPage() {
           <div className="glass rounded-2xl p-5">
             <Mail className="mb-2 h-5 w-5 text-primary" />
             <div className="text-sm font-semibold">Email</div>
-            <a href="mailto:hello@satvision.ai" className="text-xs text-muted-foreground hover:text-foreground">hello@satvision.ai</a>
+            <a href="mailto:devendrabhetuwal1@gmail.com" className="text-xs text-muted-foreground hover:text-foreground">devendrabhetuwal1@gmail.com</a>
           </div>
           <div className="glass rounded-2xl p-5">
             <MessageSquare className="mb-2 h-5 w-5 text-primary" />
