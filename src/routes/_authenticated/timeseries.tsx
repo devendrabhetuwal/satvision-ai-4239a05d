@@ -10,6 +10,8 @@ import {
   TrendingDown,
   Minus,
   Layers,
+  FileJson,
+  FileSpreadsheet,
 } from "lucide-react";
 import { toast } from "sonner";
 import {
@@ -23,7 +25,7 @@ import {
   ResponsiveContainer,
   ReferenceLine,
 } from "recharts";
-import { loadGeoTiff, computeIndex } from "@/lib/geotiff-utils";
+import { loadGeoTiff, computeIndex, downloadJson } from "@/lib/geotiff-utils";
 
 export const Route = createFileRoute("/_authenticated/timeseries")({
   head: () => ({
@@ -49,6 +51,9 @@ type Acquisition = {
   ndvi: Stats;
   ndwi: Stats;
   ndbi: Stats;
+  bbox: [number, number, number, number];
+  bboxLatLng: [number, number, number, number] | null;
+  epsg?: number;
 };
 
 type IndexKey = "ndvi" | "ndwi" | "ndbi";
@@ -114,6 +119,9 @@ function TimeSeriesPage() {
             ndvi: statsFrom(ndvi),
             ndwi: statsFrom(ndwi),
             ndbi: statsFrom(ndbi),
+            bbox: loaded.meta.bbox,
+            bboxLatLng: loaded.meta.bboxLatLng,
+            epsg: loaded.meta.epsg,
           },
         ].sort((a, b) => a.date.localeCompare(b.date))
       );
