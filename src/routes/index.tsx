@@ -1,6 +1,7 @@
 import { createFileRoute, Link } from "@tanstack/react-router";
-import { Satellite, Sparkles, Map, Brain, Upload, LineChart, ArrowRight } from "lucide-react";
+import { Satellite, Sparkles, Map, Brain, Upload, LineChart, ArrowRight, FileText, Download, FolderOpen } from "lucide-react";
 import heroEarth from "@/assets/hero-earth.jpg";
+import { MarketingFooter } from "./about";
 
 export const Route = createFileRoute("/")({
   component: Landing,
@@ -24,14 +25,20 @@ function Landing() {
       {/* Nav */}
       <header className="fixed top-0 z-50 w-full">
         <div className="mx-auto flex max-w-7xl items-center justify-between px-6 py-4">
-          <div className="flex items-center gap-2">
+          <Link to="/" className="flex items-center gap-2">
             <div className="flex h-9 w-9 items-center justify-center rounded-lg glow" style={{ background: "var(--gradient-primary)" }}>
               <Satellite className="h-5 w-5 text-primary-foreground" />
             </div>
             <span className="text-lg font-bold tracking-tight" style={{ fontFamily: "Space Grotesk" }}>
               SatVision <span className="text-gradient">AI</span>
             </span>
-          </div>
+          </Link>
+          <nav className="hidden items-center gap-6 text-sm text-muted-foreground md:flex">
+            <Link to="/about" activeProps={{ className: "text-foreground" }}>About</Link>
+            <Link to="/docs" activeProps={{ className: "text-foreground" }}>Docs</Link>
+            <Link to="/pricing" activeProps={{ className: "text-foreground" }}>Pricing</Link>
+            <Link to="/contact" activeProps={{ className: "text-foreground" }}>Contact</Link>
+          </nav>
           <Link
             to="/auth"
             className="glass rounded-full px-5 py-2 text-sm font-medium transition-all hover:glow"
@@ -94,14 +101,15 @@ function Landing() {
         <div className="grid grid-cols-1 gap-5 md:grid-cols-2 lg:grid-cols-4">
           <Feature icon={Upload} title="GeoTIFF Upload" desc="Drop a single or multi-band GeoTIFF and we'll parse metadata, bounds, and CRS instantly." />
           <Feature icon={Map} title="Interactive Maps" desc="Leaflet-powered layers with satellite, terrain, and street basemaps plus overlay support." />
-          <Feature icon={LineChart} title="NDVI & NDWI" desc="Compute vegetation and water indices client-side with real-time histogram statistics." />
+          <Feature icon={LineChart} title="7 spectral indices" desc="NDVI, NDWI, EVI, SAVI, NBR plus custom band math — real-time histogram statistics." />
           <Feature icon={Brain} title="AI Assistant" desc="Ask questions about your dataset. Get NDVI explanations, anomaly hints, and next steps." />
+          <Feature icon={FileText} title="AI Reports" desc="One-click markdown analysis reports grounded in your data's statistics." />
+          <Feature icon={Download} title="Export" desc="Download colorized index overlays as PNG and statistics as JSON." />
+          <Feature icon={FolderOpen} title="Projects & History" desc="Save sessions with band selections, CRS, and stats to reopen anytime." />
+          <Feature icon={Sparkles} title="Secure by default" desc="Row-level security, encrypted auth, and Google sign-in out of the box." />
         </div>
       </section>
-
-      <footer className="border-t border-border/40 py-8 text-center text-xs text-muted-foreground">
-        © {new Date().getFullYear()} SatVision AI — Powered by Lovable AI
-      </footer>
+      <MarketingFooter />
     </div>
   );
 }
