@@ -1,10 +1,24 @@
 import { createFileRoute, useNavigate, Link } from "@tanstack/react-router";
 import { useState, useMemo } from "react";
+import { useServerFn } from "@tanstack/react-start";
 import { supabase } from "@/integrations/supabase/client";
-import { loadGeoTiff, computeIndex, renderIndexToDataURL, type LoadedTiff } from "@/lib/geotiff-utils";
+import {
+  loadGeoTiff,
+  computeIndex,
+  computeEVI,
+  computeSAVI,
+  computeNBR,
+  computeCustom,
+  renderIndexToDataURL,
+  downloadDataUrl,
+  downloadJson,
+  type LoadedTiff,
+} from "@/lib/geotiff-utils";
 import { GeoMap } from "@/components/dashboard/GeoMap";
 import { AIChat } from "@/components/dashboard/AIChat";
-import { Satellite, Upload, LogOut, Loader2, Layers, Info } from "lucide-react";
+import { saveProject } from "@/lib/projects.functions";
+import { generateAnalysisReport } from "@/lib/ai-report.functions";
+import { Satellite, Upload, LogOut, Loader2, Layers, Info, Download, Save, FileText, FolderOpen, X } from "lucide-react";
 import { toast } from "sonner";
 
 export const Route = createFileRoute("/_authenticated/dashboard")({
@@ -12,19 +26,30 @@ export const Route = createFileRoute("/_authenticated/dashboard")({
 });
 
 type Stats = { min: number; max: number; mean: number; count: number; histogram: number[] };
+type IndexKind = "raw" | "ndvi" | "ndwi" | "evi" | "savi" | "nbr" | "custom";
 
 function Dashboard() {
   const navigate = useNavigate();
   const [loading, setLoading] = useState(false);
   const [tiff, setTiff] = useState<LoadedTiff | null>(null);
   const [overlayUrl, setOverlayUrl] = useState<string | null>(null);
-  const [indexType, setIndexType] = useState<"raw" | "ndvi" | "ndwi">("raw");
+  const [indexType, setIndexType] = useState<IndexKind>("raw");
   const [stats, setStats] = useState<Stats | null>(null);
   const [basemap, setBasemap] = useState<"satellite" | "streets" | "terrain">("satellite");
   const [redBandIdx, setRedBandIdx] = useState(0);
   const [nirBandIdx, setNirBandIdx] = useState(1);
   const [greenBandIdx, setGreenBandIdx] = useState(1);
+  const [blueBandIdx, setBlueBandIdx] = useState(2);
+  const [swirBandIdx, setSwirBandIdx] = useState(5);
+  const [customExpr, setCustomExpr] = useState("(B3 - B2) / (B3 + B2)");
   const [fileName, setFileName] = useState<string>("");
+  const [saving, setSaving] = useState(false);
+  const [projectId, setProjectId] = useState<string | undefined>(undefined);
+  const [report, setReport] = useState<string | null>(null);
+  const [reportLoading, setReportLoading] = useState(false);
+
+  const saveFn = useServerFn(saveProject);
+  const reportFn = useServerFn(generateAnalysisReport);
 
   const meta = tiff?.meta;
 
@@ -66,22 +91,117 @@ function Dashboard() {
     }
   };
 
-  const computeAndRender = async (kind: "ndvi" | "ndwi") => {
+  const computeAndRender = async (kind: Exclude<IndexKind, "raw">) => {
     if (!tiff) return;
     setLoading(true);
     try {
-      const bands = kind === "ndvi" ? [nirBandIdx, redBandIdx] : [greenBandIdx, nirBandIdx];
-      const raster = (await tiff.image.readRasters({ samples: bands })) as unknown as (Float32Array | Uint16Array | Int16Array)[];
-      const { data, min, max, mean, count, histogram } = computeIndex(raster[0], raster[1]);
-      const url = renderIndexToDataURL(data, tiff.meta.width, tiff.meta.height, kind);
+      let result: { data: Float32Array; min: number; max: number; mean: number; count: number; histogram: number[] };
+      let colormap: "ndvi" | "ndwi" | "gray" = "ndvi";
+      if (kind === "ndvi") {
+        const [nir, red] = (await tiff.image.readRasters({ samples: [nirBandIdx, redBandIdx] })) as unknown as Float32Array[];
+        result = computeIndex(nir, red); colormap = "ndvi";
+      } else if (kind === "ndwi") {
+        const [green, nir] = (await tiff.image.readRasters({ samples: [greenBandIdx, nirBandIdx] })) as unknown as Float32Array[];
+        result = computeIndex(green, nir); colormap = "ndwi";
+      } else if (kind === "evi") {
+        const [nir, red, blue] = (await tiff.image.readRasters({ samples: [nirBandIdx, redBandIdx, blueBandIdx] })) as unknown as Float32Array[];
+        result = computeEVI(nir, red, blue); colormap = "ndvi";
+      } else if (kind === "savi") {
+        const [nir, red] = (await tiff.image.readRasters({ samples: [nirBandIdx, redBandIdx] })) as unknown as Float32Array[];
+        result = computeSAVI(nir, red); colormap = "ndvi";
+      } else if (kind === "nbr") {
+        const [nir, swir] = (await tiff.image.readRasters({ samples: [nirBandIdx, swirBandIdx] })) as unknown as Float32Array[];
+        result = computeNBR(nir, swir); colormap = "ndwi";
+      } else {
+        // custom — read ALL bands referenced in expression
+        const refs = Array.from(new Set(Array.from(customExpr.matchAll(/B(\d+)/g)).map((m) => Number(m[1]))));
+        const rasters = (await tiff.image.readRasters({ samples: refs })) as unknown as Float32Array[];
+        const bandMap: Float32Array[] = [];
+        refs.forEach((r, i) => { bandMap[r] = rasters[i]; });
+        result = computeCustom(bandMap, customExpr); colormap = "ndvi";
+      }
+      const { data, min, max, mean, count, histogram } = result;
+      const url = renderIndexToDataURL(data, tiff.meta.width, tiff.meta.height, colormap);
       setOverlayUrl(url);
       setStats({ min, max, mean, count, histogram });
       setIndexType(kind);
+      setReport(null);
     } catch (err) {
       toast.error(err instanceof Error ? err.message : `Failed to compute ${kind.toUpperCase()}`);
     } finally {
       setLoading(false);
     }
+  };
+
+  const exportPng = () => {
+    if (!overlayUrl) return;
+    downloadDataUrl(overlayUrl, `${fileName.replace(/\.[^.]+$/, "")}_${indexType}.png`);
+  };
+
+  const exportJson = () => {
+    if (!meta) return;
+    downloadJson(
+      { file: fileName, meta, index: indexType, stats },
+      `${fileName.replace(/\.[^.]+$/, "")}_${indexType}.json`,
+    );
+  };
+
+  const handleSave = async () => {
+    if (!tiff || !meta) return;
+    setSaving(true);
+    try {
+      const row = await saveFn({
+        data: {
+          id: projectId,
+          name: fileName || "Untitled dataset",
+          file_name: fileName,
+          width: meta.width,
+          height: meta.height,
+          bands: meta.samplesPerPixel,
+          bbox: meta.bbox,
+          epsg: meta.epsg ?? null,
+          projected: meta.projected,
+          last_index: indexType === "raw" ? null : indexType,
+          last_stats: stats
+            ? { min: stats.min, max: stats.max, mean: stats.mean, count: stats.count }
+            : null,
+          notes: null,
+        },
+      });
+      setProjectId((row as { id: string } | null)?.id);
+      toast.success("Project saved");
+    } catch (err) {
+      toast.error(err instanceof Error ? err.message : "Save failed");
+    } finally {
+      setSaving(false);
+    }
+  };
+
+  const generateReport = async () => {
+    if (!datasetContext) return;
+    setReportLoading(true);
+    try {
+      const { report: md } = await reportFn({
+        data: {
+          datasetContext,
+          indexType: indexType === "raw" ? undefined : indexType,
+          stats: stats ? { min: stats.min, max: stats.max, mean: stats.mean, count: stats.count } : undefined,
+        },
+      });
+      setReport(md);
+    } catch (err) {
+      toast.error(err instanceof Error ? err.message : "Report failed");
+    } finally {
+      setReportLoading(false);
+    }
+  };
+
+  const downloadReport = () => {
+    if (!report) return;
+    const blob = new Blob([report], { type: "text/markdown" });
+    const url = URL.createObjectURL(blob);
+    downloadDataUrl(url, `${(fileName || "report").replace(/\.[^.]+$/, "")}_report.md`);
+    setTimeout(() => URL.revokeObjectURL(url), 1000);
   };
 
   const signOut = async () => {
@@ -117,12 +237,17 @@ function Dashboard() {
               SatVision <span className="text-gradient">AI</span>
             </span>
           </Link>
-          <button
-            onClick={signOut}
-            className="glass flex items-center gap-2 rounded-full px-4 py-1.5 text-xs font-medium hover:bg-white/5"
-          >
-            <LogOut className="h-3.5 w-3.5" /> Sign out
-          </button>
+          <div className="flex items-center gap-2">
+            <Link to="/projects" className="glass flex items-center gap-2 rounded-full px-4 py-1.5 text-xs font-medium hover:bg-white/5">
+              <FolderOpen className="h-3.5 w-3.5" /> Projects
+            </Link>
+            <button
+              onClick={signOut}
+              className="glass flex items-center gap-2 rounded-full px-4 py-1.5 text-xs font-medium hover:bg-white/5"
+            >
+              <LogOut className="h-3.5 w-3.5" /> Sign out
+            </button>
+          </div>
         </div>
       </header>
 
@@ -176,42 +301,75 @@ function Dashboard() {
           {meta && meta.samplesPerPixel > 1 && (
             <div>
               <h3 className="mb-2 flex items-center gap-2 text-xs font-semibold uppercase tracking-wider text-muted-foreground">
-                <Layers className="h-3 w-3" /> Analysis
+                <Layers className="h-3 w-3" /> Bands
               </h3>
               <div className="space-y-2 text-xs">
                 <div className="grid grid-cols-2 gap-2">
-                  <label className="block">
-                    <span className="text-muted-foreground">Red band</span>
-                    <input type="number" min={0} max={meta.samplesPerPixel - 1} value={redBandIdx}
-                      onChange={(e) => setRedBandIdx(Number(e.target.value))}
-                      className="mt-1 w-full rounded-lg border border-border bg-input px-2 py-1 font-mono" />
-                  </label>
-                  <label className="block">
-                    <span className="text-muted-foreground">NIR band</span>
-                    <input type="number" min={0} max={meta.samplesPerPixel - 1} value={nirBandIdx}
-                      onChange={(e) => setNirBandIdx(Number(e.target.value))}
-                      className="mt-1 w-full rounded-lg border border-border bg-input px-2 py-1 font-mono" />
-                  </label>
-                  <label className="col-span-2 block">
-                    <span className="text-muted-foreground">Green band (NDWI)</span>
-                    <input type="number" min={0} max={meta.samplesPerPixel - 1} value={greenBandIdx}
-                      onChange={(e) => setGreenBandIdx(Number(e.target.value))}
-                      className="mt-1 w-full rounded-lg border border-border bg-input px-2 py-1 font-mono" />
-                  </label>
+                  {[
+                    ["Red", redBandIdx, setRedBandIdx],
+                    ["NIR", nirBandIdx, setNirBandIdx],
+                    ["Green", greenBandIdx, setGreenBandIdx],
+                    ["Blue", blueBandIdx, setBlueBandIdx],
+                    ["SWIR", swirBandIdx, setSwirBandIdx],
+                  ].map(([label, val, set]) => (
+                    <label key={label as string} className="block">
+                      <span className="text-muted-foreground">{label as string}</span>
+                      <input type="number" min={0} max={meta.samplesPerPixel - 1} value={val as number}
+                        onChange={(e) => (set as (n: number) => void)(Number(e.target.value))}
+                        className="mt-1 w-full rounded-lg border border-border bg-input px-2 py-1 font-mono" />
+                    </label>
+                  ))}
                 </div>
-                <div className="grid grid-cols-2 gap-2 pt-1">
-                  <button onClick={() => computeAndRender("ndvi")}
-                    disabled={loading}
-                    className="rounded-lg px-3 py-2 text-xs font-semibold text-primary-foreground transition-all hover:glow disabled:opacity-50"
+
+                <h3 className="mt-3 mb-1 text-xs font-semibold uppercase tracking-wider text-muted-foreground">Indices</h3>
+                <div className="grid grid-cols-3 gap-2">
+                  {(["ndvi", "ndwi", "evi", "savi", "nbr"] as const).map((k) => (
+                    <button key={k} onClick={() => computeAndRender(k)} disabled={loading}
+                      className={`rounded-lg px-2 py-2 text-[11px] font-semibold uppercase transition-all disabled:opacity-50 ${
+                        indexType === k ? "text-primary-foreground" : "glass hover:bg-white/5"
+                      }`}
+                      style={indexType === k ? { background: "var(--gradient-primary)" } : undefined}>
+                      {k}
+                    </button>
+                  ))}
+                </div>
+
+                <div className="mt-2">
+                  <span className="text-muted-foreground">Custom formula</span>
+                  <input value={customExpr} onChange={(e) => setCustomExpr(e.target.value)}
+                    placeholder="(B3 - B2) / (B3 + B2)"
+                    className="mt-1 w-full rounded-lg border border-border bg-input px-2 py-1 font-mono text-[11px]" />
+                  <button onClick={() => computeAndRender("custom")} disabled={loading}
+                    className="mt-2 w-full rounded-lg px-2 py-2 text-[11px] font-semibold text-primary-foreground disabled:opacity-50"
                     style={{ background: "var(--gradient-primary)" }}>
-                    Compute NDVI
-                  </button>
-                  <button onClick={() => computeAndRender("ndwi")}
-                    disabled={loading}
-                    className="glass rounded-lg px-3 py-2 text-xs font-semibold transition-all hover:bg-white/5 disabled:opacity-50">
-                    Compute NDWI
+                    Compute custom
                   </button>
                 </div>
+              </div>
+            </div>
+          )}
+
+          {meta && (
+            <div>
+              <h3 className="mb-2 text-xs font-semibold uppercase tracking-wider text-muted-foreground">Session</h3>
+              <div className="grid grid-cols-2 gap-2">
+                <button onClick={handleSave} disabled={saving}
+                  className="glass flex items-center justify-center gap-1 rounded-lg px-2 py-2 text-[11px] font-semibold hover:bg-white/5 disabled:opacity-50">
+                  {saving ? <Loader2 className="h-3 w-3 animate-spin" /> : <Save className="h-3 w-3" />} Save
+                </button>
+                <button onClick={exportPng} disabled={!overlayUrl}
+                  className="glass flex items-center justify-center gap-1 rounded-lg px-2 py-2 text-[11px] font-semibold hover:bg-white/5 disabled:opacity-50">
+                  <Download className="h-3 w-3" /> PNG
+                </button>
+                <button onClick={exportJson}
+                  className="glass flex items-center justify-center gap-1 rounded-lg px-2 py-2 text-[11px] font-semibold hover:bg-white/5">
+                  <Download className="h-3 w-3" /> JSON
+                </button>
+                <button onClick={generateReport} disabled={reportLoading || !stats}
+                  className="flex items-center justify-center gap-1 rounded-lg px-2 py-2 text-[11px] font-semibold text-primary-foreground disabled:opacity-50"
+                  style={{ background: "var(--gradient-primary)" }}>
+                  {reportLoading ? <Loader2 className="h-3 w-3 animate-spin" /> : <FileText className="h-3 w-3" />} Report
+                </button>
               </div>
             </div>
           )}
@@ -291,6 +449,29 @@ function Dashboard() {
           <AIChat datasetContext={datasetContext} />
         </aside>
       </div>
+
+      {report && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 p-4" onClick={() => setReport(null)}>
+          <div className="glass max-h-[85vh] w-full max-w-3xl overflow-hidden rounded-2xl" onClick={(e) => e.stopPropagation()}>
+            <div className="flex items-center justify-between border-b border-border/40 p-4">
+              <h3 className="flex items-center gap-2 text-sm font-semibold" style={{ fontFamily: "Space Grotesk" }}>
+                <FileText className="h-4 w-4 text-primary" /> AI Analysis Report
+              </h3>
+              <div className="flex items-center gap-2">
+                <button onClick={downloadReport} className="glass flex items-center gap-1 rounded-full px-3 py-1 text-xs">
+                  <Download className="h-3 w-3" /> .md
+                </button>
+                <button onClick={() => setReport(null)} className="glass rounded-full p-1.5">
+                  <X className="h-3.5 w-3.5" />
+                </button>
+              </div>
+            </div>
+            <div className="max-h-[70vh] overflow-y-auto p-6">
+              <pre className="whitespace-pre-wrap text-sm text-foreground" style={{ fontFamily: "Inter" }}>{report}</pre>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 }
