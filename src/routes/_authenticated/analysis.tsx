@@ -112,7 +112,7 @@ function AnalysisPage() {
     <div className="min-h-screen">
       <header className="glass sticky top-0 z-40 border-b border-border/40">
         <div className="mx-auto flex max-w-[1600px] items-center justify-between px-6 py-3">
-          <Link to="/_authenticated/dashboard" className="flex items-center gap-2 text-sm">
+          <Link to="/dashboard" className="flex items-center gap-2 text-sm">
             <ArrowLeft className="h-4 w-4" /> Back to workspace
           </Link>
           <h1 className="text-sm font-bold" style={{ fontFamily: "Space Grotesk" }}>
