@@ -501,12 +501,28 @@ function TimeSeriesPage() {
 
             {/* Scene table */}
             <section className="glass rounded-2xl p-5">
-              <h3
-                className="mb-3 text-sm font-bold uppercase tracking-wider text-muted-foreground"
-                style={{ fontFamily: "Space Grotesk" }}
-              >
-                Scenes ({items.length})
-              </h3>
+              <div className="mb-3 flex flex-wrap items-center justify-between gap-2">
+                <h3
+                  className="text-sm font-bold uppercase tracking-wider text-muted-foreground"
+                  style={{ fontFamily: "Space Grotesk" }}
+                >
+                  Scenes ({items.length})
+                </h3>
+                <div className="flex gap-2">
+                  <button
+                    onClick={exportCsv}
+                    className="glass flex items-center gap-1.5 rounded-full px-3 py-1.5 text-xs font-medium hover:bg-white/5"
+                  >
+                    <FileSpreadsheet className="h-3.5 w-3.5" /> Export CSV
+                  </button>
+                  <button
+                    onClick={exportGeoJSON}
+                    className="glass flex items-center gap-1.5 rounded-full px-3 py-1.5 text-xs font-medium hover:bg-white/5"
+                  >
+                    <FileJson className="h-3.5 w-3.5" /> Export GeoJSON
+                  </button>
+                </div>
+              </div>
               <div className="overflow-x-auto">
                 <table className="w-full text-xs">
                   <thead className="text-muted-foreground">
