@@ -81,9 +81,13 @@ export const Route = createRootRouteWithContext<{ queryClient: QueryClient }>()(
       { name: "description", content: "Upload, visualize, and analyze satellite imagery with AI. NDVI, NDWI, cloud detection, and natural-language geospatial insights." },
       { name: "author", content: "SatVision AI" },
       { property: "og:title", content: "SatVision AI — Satellite Data Intelligence" },
-      { property: "og:description", content: "AI-powered satellite dataset analysis, vegetation indices, and interactive geospatial visualization." },
+      { property: "og:description", content: "Upload, visualize, and analyze satellite imagery with AI. NDVI, NDWI, cloud detection, and natural-language geospatial insights." },
       { property: "og:type", content: "website" },
       { name: "twitter:card", content: "summary_large_image" },
+      { name: "twitter:title", content: "SatVision AI — Satellite Data Intelligence" },
+      { name: "twitter:description", content: "Upload, visualize, and analyze satellite imagery with AI. NDVI, NDWI, cloud detection, and natural-language geospatial insights." },
+      { property: "og:image", content: "https://pub-bb2e103a32db4e198524a2e9ed8f35b4.r2.dev/971cd3de-c205-41a5-a0ae-b4e37cc32104/id-preview-93d59906--38836726-7d06-4cf4-9347-801bab83f8c6.lovable.app-1784112038803.png" },
+      { name: "twitter:image", content: "https://pub-bb2e103a32db4e198524a2e9ed8f35b4.r2.dev/971cd3de-c205-41a5-a0ae-b4e37cc32104/id-preview-93d59906--38836726-7d06-4cf4-9347-801bab83f8c6.lovable.app-1784112038803.png" },
     ],
     links: [
       {
