@@ -34,7 +34,7 @@ export const saveProject = createServerFn({ method: "POST" })
   .middleware([requireSupabaseAuth])
   .inputValidator((input: unknown) => SaveSchema.parse(input))
   .handler(async ({ data, context }) => {
-    const payload = { ...data, user_id: context.userId };
+    const payload = { ...data, user_id: context.userId } as never;
     if (data.id) {
       const { data: row, error } = await context.supabase
         .from("projects")
