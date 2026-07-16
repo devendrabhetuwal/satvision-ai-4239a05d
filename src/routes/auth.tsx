@@ -2,7 +2,7 @@ import { createFileRoute, Link, useNavigate } from "@tanstack/react-router";
 import { useEffect, useState } from "react";
 import { supabase } from "@/integrations/supabase/client";
 import { lovable } from "@/integrations/lovable";
-import { Satellite, Loader2 } from "lucide-react";
+import { Satellite, Loader2, Apple } from "lucide-react";
 import { toast } from "sonner";
 
 export const Route = createFileRoute("/auth")({
@@ -63,6 +63,17 @@ function AuthPage() {
     }
   };
 
+  const handleApple = async () => {
+    setLoading(true);
+    const result = await lovable.auth.signInWithOAuth("apple", {
+      redirect_uri: window.location.origin,
+    });
+    if (result.error) {
+      toast.error(result.error.message || "Apple sign-in failed");
+      setLoading(false);
+    }
+  };
+
   return (
     <div className="flex min-h-screen items-center justify-center px-4">
       <div className="glass w-full max-w-md rounded-3xl p-8">
@@ -95,6 +106,16 @@ function AuthPage() {
             <path fill="#EA4335" d="M12 5.38c1.62 0 3.06.56 4.21 1.64l3.15-3.15C17.45 2.09 14.97 1 12 1 7.7 1 3.99 3.47 2.18 7.07l3.66 2.84c.87-2.6 3.3-4.53 6.16-4.53z"/>
           </svg>
           Continue with Google
+        </button>
+
+        <button
+          type="button"
+          onClick={handleApple}
+          disabled={loading}
+          className="glass mb-4 flex w-full items-center justify-center gap-3 rounded-xl px-4 py-3 text-sm font-medium transition-all hover:bg-white/5 disabled:opacity-50"
+        >
+          <Apple className="h-4 w-4" />
+          Continue with Apple
         </button>
 
         <div className="my-4 flex items-center gap-3 text-xs text-muted-foreground">
